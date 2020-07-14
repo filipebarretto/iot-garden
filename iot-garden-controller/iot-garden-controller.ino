@@ -43,23 +43,37 @@ const int TEMPERATURE_AND_HUMIDITY_SENSOR_PIN = 14;
 
 //const int MOISTURE_THRESHOLD = 30;
 
-//const int LOOP_PERIOD = 1 * 60 * 1000;   // 1 MINUTE
-const int LOOP_PERIOD = 30 * 1000;   // 30 SECONDS
+const int SEND_SENSOR_DATA_PERIOD = 1 * 60 * 1000;   // 1 MINUTE
+//const int LOOP_PERIOD = 30 * 1000;   // 30 SECONDS
 //const int DATABASE_SYNC_FREQUENCY = 5 * 60 * 1000;    // 5 MINUTES 
 //const int WATER_PLANTS_DURATION = 800;    // 1 SECOND 
+const int NUMBER_OF_READINGS = 10;
+int readings_count = 0;
 
 
 // SOIL HUMIDITY
-float moisture_01;
-float moisture_02;
-float moisture_03;
-float moisture_04;
-float moisture_05;
-float moisture_06;
-float moisture_07;
+float moisture_01_total;
+float moisture_02_total;
+float moisture_03_total;
+float moisture_04_total;
+float moisture_05_total;
+float moisture_06_total;
+float moisture_07_total;
 
-float air_humidity;
-float air_temperature;
+float moisture_01_avg;
+float moisture_02_avg;
+float moisture_03_avg;
+float moisture_04_avg;
+float moisture_05_avg;
+float moisture_06_avg;
+float moisture_07_avg;
+
+
+float air_humidity_avg;
+float air_temperature_avg;
+
+float air_humidity_total;
+float air_temperature_total;
 
 String humidity_str;
 String temperature_str;
@@ -257,7 +271,7 @@ void loop() {
   prepare_temperature_and_humidity_read();
 //  Serial.print("Humidity = ");
   humidity_str = String(dat[0], DEC) + "." + String(dat[1], DEC);
-  air_humidity = (humidity_str).toFloat();
+  air_humidity_total = air_humidity_total + (humidity_str).toFloat();
 //  Serial.print(dat[0], DEC); //Displays the integer bits of humidity;
 //  Serial.print('.');
 //  Serial.println(dat[1], DEC); //Displays the decimal places of the humidity;
@@ -266,7 +280,7 @@ void loop() {
 //  
 //  Serial.print("Temperature = ");
   temperature_str = String(dat[2], DEC) + "." + String(dat[3], DEC);
-  air_temperature = (temperature_str).toFloat();
+  air_temperature_total = air_temperature_total + (temperature_str).toFloat();
 //  Serial.print(dat[2], DEC); //Displays the integer bits of temperature;
 //  Serial.print('.');
 //  Serial.println(dat[3], DEC); //Displays the decimal places of the temperature;
@@ -283,25 +297,25 @@ void loop() {
   // CHECK SOIL MOISTURE
 
   WRITE_PERI_REG(SENS_SAR_READ_CTRL2_REG, reg_b);
-  moisture_01 = (4096 - analogRead(MOISTURE_SENSOR_PIN_01)) / 4096.0 * 100.0;
+  moisture_01_total = moisture_01_total + (4096 - analogRead(MOISTURE_SENSOR_PIN_01)) / 4096.0 * 100.0;
 
   WRITE_PERI_REG(SENS_SAR_READ_CTRL2_REG, reg_b);
-  moisture_02 = (4096 - analogRead(MOISTURE_SENSOR_PIN_02)) / 4096.0 * 100.0;
+  moisture_02_total  = moisture_02_total  + (4096 - analogRead(MOISTURE_SENSOR_PIN_02)) / 4096.0 * 100.0;
 
   WRITE_PERI_REG(SENS_SAR_READ_CTRL2_REG, reg_b);
-  moisture_03 = (4096 - analogRead(MOISTURE_SENSOR_PIN_03)) / 4096.0 * 100.0;
+  moisture_03_total  = moisture_03_total  + (4096 - analogRead(MOISTURE_SENSOR_PIN_03)) / 4096.0 * 100.0;
 
   WRITE_PERI_REG(SENS_SAR_READ_CTRL2_REG, reg_b);
-  moisture_04 = (4096 - analogRead(MOISTURE_SENSOR_PIN_04)) / 4096.0 * 100.0;
+  moisture_04_total  = moisture_04_total  + (4096 - analogRead(MOISTURE_SENSOR_PIN_04)) / 4096.0 * 100.0;
 
   WRITE_PERI_REG(SENS_SAR_READ_CTRL2_REG, reg_b);
-  moisture_05 = (4096 - analogRead(MOISTURE_SENSOR_PIN_05)) / 4096.0 * 100.0;
+  moisture_05_total  = moisture_05_total  + (1 - (4096 - analogRead(MOISTURE_SENSOR_PIN_05)) / 4096.0) * 100.0;
 
   WRITE_PERI_REG(SENS_SAR_READ_CTRL2_REG, reg_b);
-  moisture_06 = (4096 - analogRead(MOISTURE_SENSOR_PIN_06)) / 4096.0 * 100.0;
+  moisture_06_total  = moisture_06_total  + (1 - (4096 - analogRead(MOISTURE_SENSOR_PIN_06)) / 4096.0) * 100.0;
 
   WRITE_PERI_REG(SENS_SAR_READ_CTRL2_REG, reg_b);
-  moisture_07 = (4096 - analogRead(MOISTURE_SENSOR_PIN_07)) / 4096.0 * 100.0;
+  moisture_07_total  = moisture_07_total  + (1 - (4096 - analogRead(MOISTURE_SENSOR_PIN_07)) / 4096.0) * 100.0;
 
   // CHECK IF DEVICE IS CONNECTED
   if (!client.connected()) {
@@ -310,11 +324,61 @@ void loop() {
     client.loop();  
   }
 
-  // PREPARE DATA PAYLOAD TO SEND TO MQTT TOPIC
-  String payload = "{\"m_01\": " + String(moisture_01) + ", \"m_02\": " + String(moisture_02) + ", \"m_03\": " + String(moisture_03) + ", \"m_04\": " + String(moisture_04) + ", \"m_05\": " + String(moisture_05) +  ", \"m_06\": " + String(moisture_06) +  ", \"m_07\": " + String(moisture_07) +  ", \"t\": " + String(air_temperature) +  ", \"h\": " + String(air_humidity) + "}";
-  payload.toCharArray(data, (payload.length() + 1));
-  Serial.println(payload);
-  client.publish("iot_garden_controller", data);
+  if (readings_count == NUMBER_OF_READINGS) {
+    readings_count = 0;
+
+    moisture_01_avg = moisture_01_total / NUMBER_OF_READINGS;
+    moisture_02_avg = moisture_02_total / NUMBER_OF_READINGS;
+    moisture_03_avg = moisture_03_total / NUMBER_OF_READINGS;
+    moisture_04_avg = moisture_04_total / NUMBER_OF_READINGS;
+    moisture_05_avg = moisture_05_total / NUMBER_OF_READINGS;
+    moisture_06_avg = moisture_06_total / NUMBER_OF_READINGS;
+    moisture_07_avg = moisture_07_total / NUMBER_OF_READINGS;
+
+    air_temperature_avg = air_temperature_total / NUMBER_OF_READINGS;
+    air_humidity_avg = air_humidity_total / NUMBER_OF_READINGS;
+
+    Serial.println("Soil Moisture 01: ");
+    Serial.println(moisture_01_avg);
+    Serial.println("Soil Moisture 02: ");
+    Serial.println(moisture_02_avg);
+    Serial.println("Soil Moisture 03: ");
+    Serial.println(moisture_03_avg);
+    Serial.println("Soil Moisture 04: ");
+    Serial.println(moisture_04_avg);
+    Serial.println("Soil Moisture 05: ");
+    Serial.println(moisture_05_avg);
+    Serial.println("Soil Moisture 06: ");
+    Serial.println(moisture_06_avg);
+    Serial.println("Soil Moisture 07: ");
+    Serial.println(moisture_07_avg);
+
+    Serial.println("T: ");
+    Serial.println(air_temperature_avg);
+
+    Serial.println("H: ");
+    Serial.println(air_humidity_avg);
+    
+    
+    moisture_01_total = 0.0;
+    moisture_02_total = 0.0;
+    moisture_03_total = 0.0;
+    moisture_04_total = 0.0;
+    moisture_05_total = 0.0;
+    moisture_06_total = 0.0;
+    moisture_07_total = 0.0;
+    air_temperature_total = 0.0;
+    air_humidity_total = 0.0;
+
+    // PREPARE DATA PAYLOAD TO SEND TO MQTT TOPIC
+    Serial.println("Sending data to IOT Core");
+    String payload = "{\"m_01\": " + String(moisture_01_avg) + ", \"m_02\": " + String(moisture_02_avg) + ", \"m_03\": " + String(moisture_03_avg) + ", \"m_04\": " + String(moisture_04_avg) + ", \"m_05\": " + String(moisture_05_avg) +  ", \"m_06\": " + String(moisture_06_avg) +  ", \"m_07\": " + String(moisture_07_avg) +  ", \"t\": " + String(air_temperature_avg) +  ", \"h\": " + String(air_humidity_avg) + "}";
+    payload.toCharArray(data, (payload.length() + 1));
+    Serial.println(payload);
+    client.publish("iot_garden_controller", data);
+  } else {
+    readings_count = readings_count + 1;  
+  }
 
   
 
@@ -349,6 +413,6 @@ void loop() {
   }
   */
 
-  delay(LOOP_PERIOD);
+  delay(SEND_SENSOR_DATA_PERIOD / NUMBER_OF_READINGS);
   
 }

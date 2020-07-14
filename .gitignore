@@ -39,3 +39,8 @@
 # CREDENTIALS
 credentials.h
 wifi_config.h
+
+
+# TMP
+test-cloudformation
+test-cloudformation/*

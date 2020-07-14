@@ -7,6 +7,10 @@ def hello(event, context):
         "input": event
     }
 
+    # GET RECENT DATA FROM DYNAMODB
+
+    # GET LATEST WATERING EVENT
+
     response = {
         "statusCode": 200,
         "body": json.dumps(body)

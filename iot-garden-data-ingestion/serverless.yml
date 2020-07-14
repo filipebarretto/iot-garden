@@ -1,16 +1,3 @@
-# Welcome to Serverless!
-#
-# This file is the main config file for your service.
-# It's very minimal at this point and uses default values.
-# You can always add more config options for more control.
-# We've included some commented out config examples here.
-# Just uncomment any of them to get that config option.
-#
-# For full config options, check the docs:
-#    docs.serverless.com
-#
-# Happy Coding!
-
 service: iot-garden-data-ingestion
 # app and org for use with dashboard.serverless.com
 #app: your-app-name
@@ -20,9 +7,15 @@ service: iot-garden-data-ingestion
 # Check out our docs for more details
 # frameworkVersion: "=X.X.X"
 
+frameworkVersion: ">=1.34.0 <2.0.0"
+
 provider:
   name: aws
-  runtime: python3.8
+  profile: iot-garden-deploy
+  runtime: python3.7
+  stage: ${opt:stage, 'dev'}
+  region: us-east-1
+  deploymentBucket: ${self:custom.deployment_bucket}
 
 # you can overwrite defaults here
 #  stage: dev
@@ -100,14 +93,67 @@ functions:
 #    environment:
 #      variable2: value2
 
-# you can add CloudFormation resource templates here
-#resources:
-#  Resources:
-#    NewResource:
-#      Type: AWS::S3::Bucket
-#      Properties:
-#        BucketName: my-new-bucket
-#  Outputs:
-#     NewOutput:
-#       Description: "Description for the output"
-#       Value: "Some output value"
+package:
+  individually: true
+  exclude:
+    - node_modules/**
+
+resources:  
+  Description: Automatically created by Serverless Framework to manage IoT Garden Resources
+  Resources:
+
+    PostImagesBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:custom.bucket_iot_garden_data_lake}
+
+    GardenMappingTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.table_garden_mapping}
+        AttributeDefinitions:
+          - AttributeName: email
+            AttributeType: S
+        KeySchema:
+          - AttributeName: email
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+
+    GardenSensorDataTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.table_sensor_data}
+        AttributeDefinitions:
+          - AttributeName: email
+            AttributeType: S
+        KeySchema:
+          - AttributeName: email
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+    
+  
+
+custom:
+  pythonRequirements:
+    dockerizePip: non-linux
+  stage: ${opt:stage, self:provider.stage}
+  region: ${opt:region, self:provider.region}
+  user_name: filipebarretto
+  account_id: ${file(./customjs/custom-account-id.js):getAccountId}
+  deployment_bucket: ${self:custom.account_id}-${self:service}-${self:provider.stage}
+  bucket_iot_garden_data_lake: ${self:custom.account_id}-iot-garden-data-lake-${self:provider.stage}-${self:custom.account_id}
+  webinar_sns: webinar-sns-${self:provider.stage}-${self:custom.account_id}
+  solvimm_tips_sns: solvimm-tips-sns-${self:provider.stage}-${self:custom.account_id}
+  table_sensor_data: ${self:custom.account_id}-${self:service}-sensor-data-${self:provider.stage}-${self:custom.account_id}
+  table_garden_mapping: ${self:custom.account_id}-${self:service}-garden-mapping-${self:provider.stage}-${self:custom.account_id}
+  
+  
+plugins:
+  - serverless-python-requirements
+  - serverless-iam-roles-per-function
+  - serverless-plugin-create-deployment-bucket
+  - serverless-pseudo-parameters

@@ -1,0 +1,12 @@
+{
+   "fileLocations":[
+      {
+         "URIPrefixes":[
+            "s3://filipebarretto-iot-garden-sensor-data/"
+         ]
+      }
+   ],
+   "globalUploadSettings":{
+      "format":"JSON"
+   }
+}
